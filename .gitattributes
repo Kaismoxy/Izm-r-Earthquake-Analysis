@@ -1,2 +1,3 @@
-*.geojson linguist-generated=true
-*.qmd linguist-generated=true
+*.geojson linguist-generated
+*.qmd linguist-generated
+*.sql linguist-generated
