@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>Izmir Earthquake Analysis</title>
+
+        <!-- Leaflet CSS for map styling -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+        <!-- Leaflet JS for map functionality -->
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+        <!-- Leaflet Control Geocoder for location search functionality -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+        <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+          
+        <style>
+          /* Import Montserrat font from Google Fonts */
+          @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+
+            /* Global body styles */
+            body {
+                margin: 0;
+                padding: 0; 
+                font-family:"Montserrat", sans-serif ;
+                background-color: #121212;
+                overflow: hidden;
+            }
+            /* Map container styles including dark mode filter */
+            #map {
+                width: 100vw; height: calc(100vh);
+                filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+                
+            }
+            /* Dashboard title bar styles */
+                #dashboard-title {
+                width: 100%;
+            height: 60px;
+            background: linear-gradient(135deg, #1e272e 0%, #2c3e50 100%);
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
+            box-sizing: border-box;
+            border-bottom: 3px solid #e74c3c; /* Fay hattı kırmızı vurgusu - Fault line red highlight */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 1000;
+                }
+
+            /* Customizing Leaflet layer control panel */
+            leaflet-control-layers {
+              background: rgba(30, 68, 96, 0.85) !important;
+              backdrop-filter: blur(10px);
+              border: 1px solid rgba(255, 255, 255, 0.15) !important;
+               border-radius: 12px !important;
+               color: #ffffff !important;
+               box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+               padding: 10px 14px;
+               font-family: 'Montserrat', sans-serif !important;
+                }
+
+                .leaflet-control-layers label {
+                color: #6fc9df !important;
+                margin-bottom: 6px;
+                display: flex;
+                 align-items: center;
+                gap: 8px;
+                cursor: pointer;
+               font-family: 'Montserrat', sans-serif !important;
+}
+/* Customizing the layers toggle button icon */
+.leaflet-control-layers-toggle {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E") !important;
+    width: 42px !important;
+    height: 42px !important;
+    background-size: 22px !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-color: #1e272e !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 0% !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+}
+
+/* Animation for expanded layer control */
+.leaflet-control-layers.leaflet-control-layers-expanded {
+    padding: 15px 20px;
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Header right side alignment for geocoder */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* Custom font and padding for geocoder input */
+.leaflet-control-geocoder input {
+    font-family: 'Montserrat', sans-serif !important;
+    font-size: 0.85rem !important;
+    padding: 6px 12px !important;
+}
+
+/* Fade in animation keyframes */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+        </style>
+    </head>
+
+    <body>
+        <!-- Top Dashboard Navigation -->
+        <div id=dashboard-title>
+        <h2>İzmir Earthquake Assembly Panel</h2>
+    
+    <div class="header-right">
+        <!-- Container for the search bar (geocoder) -->
+        <div id="geocoder-container"></div>
+    </div>
+        </div>
+        
+        <!-- Map Container -->
+        <div id="map"></div>
+
+
+
+        <script>
+
+        // Initialize the map centered on Izmir with a zoom level of 11
+        var map = L.map('map').setView([38.4237, 27.1428], 11);
+
+// Setup Leaflet Geocoder for location search
+var geocoder = L.Control.geocoder({
+    defaultMarkGeocode: false, 
+    suggestMinLength: 99,
+    placeholder: "Search place..." 
+})
+
+// Event listener to zoom to the searched location's bounding box
+geocoder.on('markgeocode', function(e) {
+    var bbox = e.geocode.bbox; 
+    map.fitBounds(bbox);       
+});
+
+// Append the geocoder to the custom header container
+document.getElementById('geocoder-container').appendChild(geocoder.onAdd(map));
+
+        
+                // Add the CARTO Voyager basemap tile layer
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_25b1_1_70c1bfa0155504a7fd8efec1', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+           
+
+        }).addTo(map);
+
+        // Object to store overlay layers for the layer control panel
+        var overlayMap = {};
+
+        // Fetch and render Assembly Points data from GeoJSON
+        fetch('assemblyPoints.geojson')
+        .then(answer=>answer.json())
+        .then(AssemblyData=>{
+         L.geoJSON(AssemblyData, {
+            style: function (feature) {
+              return {
+                fillColor:"#28a745",
+                color:"#1e7e34",
+                weight:0.1,
+                opacity:1,
+                fillOpacity:0.7
+
+              };
+            
+            },
+            // Bind popups to each assembly point with district and neighborhood info
+            onEachFeature: function (feature, layer) {
+
+              var district = feature.properties.ILCE;
+              var neighbourhood = feature.properties.MAHALLE;
+
+
+                 var cardDesign = `
+                    <div style="font-family: Arial; text-align: center;">
+                        <h4 style="color: #2c3e50; margin-bottom: 5px;">Assembly Area</h4>
+                        <p style="margin: 4px  0; color: #7f8c8d;"><b>District:</b> ${district}</p>
+                        <p style="margin:4px  0; color: #7f8c8d;"><b>Neighborhood:</b> ${neighbourhood}</p>
+
+                    </div>
+                `;
+
+                layer.bindPopup(cardDesign);
+            }
+         }).addTo(map);   
+        });
+        
+        // Commented out: Fetch and render Boundary of Izmir data
+       // fetch('BoundaryOfIzmir.geojson')
+        //.then(answer=>answer.json())
+     //   .then(BoundaryData=>{
+       //  L.geoJSON(BoundaryData, {
+         //   style: function (feature) {
+           //     return {
+             //       weight: 1,
+               //     fillOpacity:0,
+                 //   color:"#3388ff"
+          //      }
+           // }
+        // }).addTo(map);   
+       // });
+        
+        // Fetch and render buffer zones for Assembly Points
+        fetch('BufferOfAssemblyPoints.geojson')
+        .then(answer=>answer.json())
+        .then(BufferData=>{
+         var assemblyLayer= L.geoJSON(BufferData, { 
+          style: function (feature) {
+          return {
+            fillColor:"#2ecc71",
+            weight: 0,
+            fillOpacity: 0.4
+          }
+        }
+         }).addTo(map); 
+         
+         // Add the loaded layer to overlayMap for the layer control
+         overlayMap["Assembly Areas"]= assemblyLayer;  
+        });
+        
+        // Fetch and render Danger Areas data
+        fetch('DangerAreas.geojson')
+        .then(answer=>answer.json())
+        .then(DangerAreaData=>{
+        var dangerAreaLayer = L.geoJSON(DangerAreaData, {
+          style: function (feature) {
+            return {
+              fillColor:"#EE4B2B",
+              color:"#2c3e50",
+              fillOpacity: 0.2,
+              weight:0
+            }
+          }
+         }).addTo(map); 
+         
+         // Add the loaded layer to overlayMap for the layer control
+         overlayMap["Danger Areas"]= dangerAreaLayer;  
+        });
+        
+        // Fetch and render Active Fault Lines data (GEM)
+        fetch('GemActiveFaults.geojson')
+        .then(answer=>answer.json())
+        .then(FaultData=>{
+         var faultLayer= L.geoJSON(FaultData, {
+            style: function (feature) {
+                return {
+                    color:"#880808",
+                    weight:1.5,
+                    opacity:0.7,
+                    dashArray:"10.10"
+                };
+            }
+         }).addTo(map); 
+         
+         // Add the loaded layer to overlayMap for the layer control
+         overlayMap["Active Faults"]= faultLayer;  
+        });
+        
+        // Commented out: Fetch and render Province Borders data
+        //fetch('ProvinceBorders.geojson')
+        //.then(answer=>answer.json())
+        //.then(ProvinceData=>{
+         //L.geoJSON(ProvinceData, {
+           // style:function(feature) {
+             //   return {
+               //     color:"#000000",
+                 //   weight: 1,
+                   // opacity: 0.7
+                //} 
+            //}
+         //}).addTo(map);   
+        //});
+    
+
+         // Initialize Leaflet layer control after a 1-second delay to ensure layers are populated
+          setTimeout(function() {
+    L.control.layers(null, overlayMap, { collapsed: true }).addTo(map);
+}, 1000);
+
+        </script>
+    </body>
+</html>
